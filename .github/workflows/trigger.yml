@@ -1,0 +1,30 @@
+name: Reservation Trigger
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */3 * * *'
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+      TARGET_REPO: ${{ secrets.TARGET_REPO }}
+      TARGET_WORKFLOW_FILE: ${{ secrets.TARGET_WORKFLOW_FILE }}
+      DISPATCH_EVENT_TYPE: ${{ secrets.DISPATCH_EVENT_TYPE }}
+      TRIGGER_TIMEZONE: ${{ secrets.TRIGGER_TIMEZONE }}
+      TRIGGER_TARGETS_JSON: ${{ secrets.TRIGGER_TARGETS_JSON }}
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Dispatch target automation near configured windows
+        run: node trigger.mjs
