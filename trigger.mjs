@@ -13,11 +13,11 @@ const dayMs = 24 * hourMs;
 
 const dispatchOffsetsMinutes = parseNumberList(
   process.env.DISPATCH_OFFSETS_MINUTES,
-  [-75, -45, -20, -5, 2, 15, 60]
+  [-75, -45, -20, -5, 2, 15]
 );
-const horizonMs = Number(process.env.TRIGGER_HORIZON_HOURS || 7) * hourMs;
+const horizonMs = Number(process.env.TRIGGER_HORIZON_HOURS || 4.5) * hourMs;
 const pastGraceMs = Number(process.env.TRIGGER_PAST_GRACE_MINUTES || 90) * minuteMs;
-const recentLookbackMs = Number(process.env.RECENT_LOOKBACK_MINUTES || 25) * minuteMs;
+const recentLookbackMs = Number(process.env.RECENT_LOOKBACK_MINUTES || 120) * minuteMs;
 const dispatchJitterSeconds = Number(process.env.GITHUB_RUN_ID || 0) % 60;
 
 async function main() {
@@ -41,7 +41,7 @@ async function main() {
     return;
   }
 
-  console.log(`Eligible target windows: ${windows.map((window) => window.id).join(', ')}.`);
+  console.log(`Eligible target windows: ${windows.length}.`);
   for (const window of windows) {
     await handleWindow(window);
   }
@@ -73,7 +73,7 @@ function loadTargets() {
 }
 
 async function handleWindow(window) {
-  console.log(`Target ${window.id} is inside the sentry horizon.`);
+  console.log('Target window is inside the sentry horizon.');
 
   for (const offset of dispatchOffsetsMinutes) {
     const dispatchAt = new Date(window.opensAt.getTime() + offset * minuteMs);
@@ -81,11 +81,11 @@ async function handleWindow(window) {
     if (dispatchAt.getTime() < now.getTime() - 2 * minuteMs) continue;
     if (dispatchAt.getTime() > window.opensAt.getTime() + 65 * minuteMs) continue;
 
-    await sleepUntil(dispatchAt, `target ${window.id} offset ${offset}m`);
+    await sleepUntil(dispatchAt, `target window offset ${offset}m`);
     await sleepJitter();
     const recent = await hasActiveOrRecentMainRun();
     if (recent) {
-      console.log(`Skipping dispatch for target ${window.id}; target repository is active or recently ran.`);
+      console.log('Skipping dispatch; target repository is active or recently completed successfully.');
       continue;
     }
 
@@ -112,20 +112,22 @@ async function hasActiveOrRecentMainRun() {
   const since = new Date(Date.now() - recentLookbackMs).toISOString();
   const url = `https://api.github.com/repos/${TARGET_REPO}/actions/workflows/${encodeURIComponent(TARGET_WORKFLOW_FILE)}/runs?per_page=30`;
   const data = await githubJson(url);
-  const recent = data.workflow_runs?.filter((run) =>
-    run.status !== 'completed' || run.created_at >= since
-  ) || [];
+  const recent = data.workflow_runs?.filter((run) => {
+    if (run.status !== 'completed') return true;
+    if (run.conclusion !== 'success') return false;
+    return (run.updated_at || run.created_at) >= since;
+  }) || [];
   if (recent.length) {
-    console.log(`Found ${recent.length} active/recent target run(s).`);
+    console.log(`Found ${recent.length} active or recently successful target run(s).`);
     return true;
   }
-  console.log('No active/recent target runs found.');
+  console.log('No active or recently successful target runs found.');
   return false;
 }
 
 async function dispatchTarget(window, offsetMinutes) {
   if (DRY_RUN) {
-    console.log(`DRY_RUN: would dispatch target ${window.id} at offset ${offsetMinutes}m.`);
+    console.log(`DRY_RUN: would dispatch target at offset ${offsetMinutes}m.`);
     return;
   }
 
@@ -144,7 +146,7 @@ async function dispatchTarget(window, offsetMinutes) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  console.log(`Dispatched target ${window.id} at offset ${offsetMinutes}m.`);
+  console.log(`Dispatched target at offset ${offsetMinutes}m.`);
 }
 
 async function githubJson(url, options = {}) {

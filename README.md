@@ -6,6 +6,10 @@ This repository contains no account credentials, venue names, class names, or
 target schedule data. The target repository, event type, timezone, and schedule
 targets are stored as encrypted GitHub Actions secrets.
 
+The workflow runs as a broad sentry, then dispatches the private target near
+configured opening windows. It suppresses later retries for two hours after a
+successful target run, so the usual path is one private run per target window.
+
 ## Required Secrets
 
 - `DISPATCH_TOKEN`: token that can create repository dispatch events in the target repository

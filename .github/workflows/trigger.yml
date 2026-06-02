@@ -16,6 +16,9 @@ jobs:
       DISPATCH_EVENT_TYPE: ${{ secrets.DISPATCH_EVENT_TYPE }}
       TRIGGER_TIMEZONE: ${{ secrets.TRIGGER_TIMEZONE }}
       TRIGGER_TARGETS_JSON: ${{ secrets.TRIGGER_TARGETS_JSON }}
+      DISPATCH_OFFSETS_MINUTES: -75,-45,-20,-5,2,15
+      RECENT_LOOKBACK_MINUTES: 120
+      TRIGGER_HORIZON_HOURS: 4.5
 
     steps:
       - name: Check out repo
