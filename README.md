@@ -11,6 +11,8 @@ configured opening windows. It suppresses later retries for two hours after a
 successful target run, so the usual path is one private run per target window.
 Only one sentry run stays active at a time; newer scheduled runs replace older
 ones so overlapping sentries do not burn extra Actions time.
+The cron schedule is limited to the configured booking-open days instead of
+running every day.
 
 ## Required Secrets
 
