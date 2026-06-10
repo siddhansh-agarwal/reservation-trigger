@@ -5,10 +5,14 @@ on:
   schedule:
     - cron: '0 */3 * * *'
 
+concurrency:
+  group: reservation-trigger-sentry
+  cancel-in-progress: true
+
 jobs:
   trigger:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 300
     env:
       DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
       TARGET_REPO: ${{ secrets.TARGET_REPO }}

@@ -9,6 +9,8 @@ targets are stored as encrypted GitHub Actions secrets.
 The workflow runs as a broad sentry, then dispatches the private target near
 configured opening windows. It suppresses later retries for two hours after a
 successful target run, so the usual path is one private run per target window.
+Only one sentry run stays active at a time; newer scheduled runs replace older
+ones so overlapping sentries do not burn extra Actions time.
 
 ## Required Secrets
 
