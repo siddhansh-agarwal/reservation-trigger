@@ -1,0 +1,50 @@
+name: Keep Scheduled Workflows Active
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Refresh repository activity even when it is recent
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # Two checks per month provide a retry before GitHub's 60-day cutoff.
+    - cron: '23 12 1,20 * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reservation-trigger-keepalive
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Refresh repository activity when needed
+        shell: bash
+        run: |
+          now_epoch="$(date -u '+%s')"
+          last_commit_epoch="$(git log -1 --format='%ct')"
+          inactive_days="$(( (now_epoch - last_commit_epoch) / 86400 ))"
+
+          if [ "$FORCE_REFRESH" != "true" ] && [ "$inactive_days" -lt 30 ]; then
+            echo "Latest repository activity is ${inactive_days} day(s) old; no refresh needed."
+            exit 0
+          fi
+
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > .github/workflow-keepalive
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflow-keepalive
+          git commit -m 'Keep scheduled workflows active'
+          git push

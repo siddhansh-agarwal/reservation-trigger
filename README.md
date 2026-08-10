@@ -14,6 +14,11 @@ ones so overlapping sentries do not burn extra Actions time.
 The cron schedule is limited to the configured booking-open days instead of
 running every day.
 
+GitHub automatically disables scheduled workflows in inactive public
+repositories. A separate keepalive checks twice monthly and creates a small
+activity marker commit only when the latest repository commit is at least 30
+days old. It does not read booking secrets or dispatch the private automation.
+
 ## Required Secrets
 
 - `DISPATCH_TOKEN`: token that can create repository dispatch events in the target repository
