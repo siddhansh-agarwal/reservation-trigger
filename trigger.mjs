@@ -11,14 +11,9 @@ const minuteMs = 60 * 1000;
 const hourMs = 60 * minuteMs;
 const dayMs = 24 * hourMs;
 
-const dispatchOffsetsMinutes = parseNumberList(
-  process.env.DISPATCH_OFFSETS_MINUTES,
-  [-75, -45, -20, -5, 2, 15]
-);
-const horizonMs = Number(process.env.TRIGGER_HORIZON_HOURS || 4.5) * hourMs;
+const leadMs = Number(process.env.TRIGGER_LEAD_MINUTES || 80) * minuteMs;
 const pastGraceMs = Number(process.env.TRIGGER_PAST_GRACE_MINUTES || 90) * minuteMs;
 const recentLookbackMs = Number(process.env.RECENT_LOOKBACK_MINUTES || 120) * minuteMs;
-const dispatchJitterSeconds = Number(process.env.GITHUB_RUN_ID || 0) % 60;
 
 async function main() {
   if (!TOKEN && !DRY_RUN) throw new Error('Missing DISPATCH_TOKEN.');
@@ -26,24 +21,24 @@ async function main() {
   if (!TARGET_WORKFLOW_FILE && !DRY_RUN) throw new Error('Missing TARGET_WORKFLOW_FILE.');
 
   const targets = loadTargets();
-  const startedAt = new Date();
-  console.log(`Trigger sentry started. Targets configured: ${targets.length}.`);
+  const startedAt = currentTime();
+  console.log(`Trigger checkpoint started. Targets configured: ${targets.length}.`);
 
   const windows = upcomingWindows(startedAt, targets)
     .filter(({ opensAt }) =>
       opensAt.getTime() >= startedAt.getTime() - pastGraceMs &&
-      opensAt.getTime() <= startedAt.getTime() + horizonMs
+      opensAt.getTime() <= startedAt.getTime() + leadMs
     )
     .sort((a, b) => a.opensAt - b.opensAt);
 
   if (!windows.length) {
-    console.log('No targets are close enough for this sentry run.');
+    console.log('No targets are due at this checkpoint.');
     return;
   }
 
   console.log(`Eligible target windows: ${windows.length}.`);
   for (const window of windows) {
-    await handleWindow(window);
+    await handleWindow(window, startedAt);
   }
 }
 
@@ -72,35 +67,17 @@ function loadTargets() {
   });
 }
 
-async function handleWindow(window) {
-  console.log('Target window is inside the sentry horizon.');
+async function handleWindow(window, now) {
+  const offsetMinutes = Math.round((now.getTime() - window.opensAt.getTime()) / minuteMs);
+  console.log(`Target is due at this checkpoint (${formatOffset(offsetMinutes)}).`);
 
-  for (const offset of dispatchOffsetsMinutes) {
-    const dispatchAt = new Date(window.opensAt.getTime() + offset * minuteMs);
-    const now = new Date();
-    if (dispatchAt.getTime() < now.getTime() - 2 * minuteMs) continue;
-    if (dispatchAt.getTime() > window.opensAt.getTime() + 65 * minuteMs) continue;
-
-    await sleepUntil(dispatchAt, `target window offset ${offset}m`);
-    await sleepJitter();
-    const recent = await hasActiveOrRecentMainRun();
-    if (recent) {
-      console.log('Skipping dispatch; target repository is active or recently completed successfully.');
-      continue;
-    }
-
-    await dispatchTarget(window, offset);
-  }
-}
-
-async function sleepJitter() {
-  if (dispatchJitterSeconds <= 0) return;
-  if (DRY_RUN) {
-    console.log(`DRY_RUN: would wait ${dispatchJitterSeconds}s dispatch jitter.`);
+  const recent = await hasActiveOrRecentMainRun();
+  if (recent) {
+    console.log('Skipping dispatch; target repository is active or recently completed successfully.');
     return;
   }
-  console.log(`Waiting ${dispatchJitterSeconds}s dispatch jitter.`);
-  await sleep(dispatchJitterSeconds * 1000);
+
+  await dispatchTarget(window, offsetMinutes);
 }
 
 async function hasActiveOrRecentMainRun() {
@@ -167,20 +144,6 @@ async function githubJson(url, options = {}) {
     throw new Error(`GitHub API ${response.status}: ${text}`);
   }
   return text ? JSON.parse(text) : null;
-}
-
-async function sleepUntil(date, label) {
-  if (DRY_RUN) {
-    console.log(`DRY_RUN: would wait for ${label}.`);
-    return;
-  }
-
-  while (Date.now() < date.getTime()) {
-    const remainingMs = date.getTime() - Date.now();
-    const waitMs = Math.min(5 * minuteMs, remainingMs);
-    console.log(`Waiting ${Math.ceil(remainingMs / minuteMs)}m for ${label}.`);
-    await sleep(waitMs);
-  }
 }
 
 function upcomingWindows(now, targets) {
@@ -250,13 +213,19 @@ function zonedDateToUtc({ year, month, day, hour, minute, second }) {
   return guess;
 }
 
-function parseNumberList(value, fallback) {
-  if (!value) return fallback;
-  return value.split(',').map((item) => Number(item.trim())).filter(Number.isFinite);
+function currentTime() {
+  if (!process.env.TRIGGER_NOW_ISO) return new Date();
+  if (!DRY_RUN) throw new Error('TRIGGER_NOW_ISO is only allowed with DRY_RUN=true.');
+  const date = new Date(process.env.TRIGGER_NOW_ISO);
+  if (Number.isNaN(date.getTime())) throw new Error('TRIGGER_NOW_ISO must be a valid timestamp.');
+  return date;
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+function formatOffset(offsetMinutes) {
+  if (offsetMinutes === 0) return 'at opening';
+  return offsetMinutes < 0
+    ? `${Math.abs(offsetMinutes)}m before opening`
+    : `${offsetMinutes}m after opening`;
 }
 
 main().catch((error) => {

@@ -3,21 +3,23 @@ name: Reservation Trigger
 on:
   workflow_dispatch:
   schedule:
-    # UTC windows for the four configured booking-open days. The trigger script
-    # still verifies the secret target windows before dispatching anything.
-    - cron: '17 14-16 * * 4'
-    - cron: '17 21-23 * * 5'
-    - cron: '17 22-23 * * 0'
-    - cron: '17 0,21-23 * * 1'
+    # Short staggered checkpoints around the configured opening days. Broad UTC
+    # bands cover daylight-saving changes; secret targets decide whether to run.
+    - cron: '7,27,47 16-20 * * 4'
+    - cron: '7,27,47 23 * * 5'
+    - cron: '7,27,47 0-3 * * 6'
+    - cron: '7,27,47 23 * * 0'
+    - cron: '7,27,47 0-4,23 * * 1'
+    - cron: '7,27,47 0-3 * * 2'
 
 concurrency:
   group: reservation-trigger-sentry
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   trigger:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 5
     env:
       DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
       TARGET_REPO: ${{ secrets.TARGET_REPO }}
@@ -25,16 +27,16 @@ jobs:
       DISPATCH_EVENT_TYPE: ${{ secrets.DISPATCH_EVENT_TYPE }}
       TRIGGER_TIMEZONE: ${{ secrets.TRIGGER_TIMEZONE }}
       TRIGGER_TARGETS_JSON: ${{ secrets.TRIGGER_TARGETS_JSON }}
-      DISPATCH_OFFSETS_MINUTES: -75,-45,-20,-5,2,15
+      TRIGGER_LEAD_MINUTES: 80
+      TRIGGER_PAST_GRACE_MINUTES: 90
       RECENT_LOOKBACK_MINUTES: 120
-      TRIGGER_HORIZON_HOURS: 4.5
 
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
