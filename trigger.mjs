@@ -11,9 +11,10 @@ const minuteMs = 60 * 1000;
 const hourMs = 60 * minuteMs;
 const dayMs = 24 * hourMs;
 
-const leadMs = Number(process.env.TRIGGER_LEAD_MINUTES || 80) * minuteMs;
-const pastGraceMs = Number(process.env.TRIGGER_PAST_GRACE_MINUTES || 90) * minuteMs;
-const recentLookbackMs = Number(process.env.RECENT_LOOKBACK_MINUTES || 120) * minuteMs;
+const leadMs = Number(process.env.TRIGGER_LEAD_MINUTES || 360) * minuteMs;
+const dispatchLeadMs = Number(process.env.DISPATCH_LEAD_MINUTES || 75) * minuteMs;
+const pastGraceMs = Number(process.env.TRIGGER_PAST_GRACE_MINUTES || 720) * minuteMs;
+const recentLookbackMs = Number(process.env.RECENT_LOOKBACK_MINUTES || 900) * minuteMs;
 
 async function main() {
   if (!TOKEN && !DRY_RUN) throw new Error('Missing DISPATCH_TOKEN.');
@@ -68,7 +69,13 @@ function loadTargets() {
 }
 
 async function handleWindow(window, now) {
-  const offsetMinutes = Math.round((now.getTime() - window.opensAt.getTime()) / minuteMs);
+  const dispatchAt = new Date(window.opensAt.getTime() - dispatchLeadMs);
+  if (now < dispatchAt) {
+    await sleepUntil(dispatchAt, 'early dispatch checkpoint');
+  }
+
+  const dispatchTime = DRY_RUN && now < dispatchAt ? dispatchAt : currentTime();
+  const offsetMinutes = Math.round((dispatchTime.getTime() - window.opensAt.getTime()) / minuteMs);
   console.log(`Target is due at this checkpoint (${formatOffset(offsetMinutes)}).`);
 
   const recent = await hasActiveOrRecentMainRun();
@@ -144,6 +151,19 @@ async function githubJson(url, options = {}) {
     throw new Error(`GitHub API ${response.status}: ${text}`);
   }
   return text ? JSON.parse(text) : null;
+}
+
+async function sleepUntil(date, label) {
+  if (DRY_RUN) {
+    console.log(`DRY_RUN: would wait until ${date.toISOString()} for ${label}.`);
+    return;
+  }
+
+  while (Date.now() < date.getTime()) {
+    const remainingMs = date.getTime() - Date.now();
+    console.log(`Waiting ${Math.ceil(remainingMs / minuteMs)}m for ${label}.`);
+    await sleep(Math.min(5 * minuteMs, remainingMs));
+  }
 }
 
 function upcomingWindows(now, targets) {
@@ -226,6 +246,10 @@ function formatOffset(offsetMinutes) {
   return offsetMinutes < 0
     ? `${Math.abs(offsetMinutes)}m before opening`
     : `${offsetMinutes}m after opening`;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 }
 
 main().catch((error) => {

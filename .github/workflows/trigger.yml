@@ -5,11 +5,11 @@ on:
   schedule:
     # Short staggered checkpoints around the configured opening days. Broad UTC
     # bands cover daylight-saving changes; secret targets decide whether to run.
-    - cron: '7,27,47 16-20 * * 4'
-    - cron: '7,27,47 23 * * 5'
+    - cron: '7,27,47 12-20 * * 4'
+    - cron: '7,27,47 19-23 * * 5'
     - cron: '7,27,47 0-3 * * 6'
-    - cron: '7,27,47 23 * * 0'
-    - cron: '7,27,47 0-4,23 * * 1'
+    - cron: '7,27,47 19-23 * * 0'
+    - cron: '7,27,47 0-4,19-23 * * 1'
     - cron: '7,27,47 0-3 * * 2'
 
 concurrency:
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   trigger:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 330
     env:
       DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
       TARGET_REPO: ${{ secrets.TARGET_REPO }}
@@ -27,9 +27,10 @@ jobs:
       DISPATCH_EVENT_TYPE: ${{ secrets.DISPATCH_EVENT_TYPE }}
       TRIGGER_TIMEZONE: ${{ secrets.TRIGGER_TIMEZONE }}
       TRIGGER_TARGETS_JSON: ${{ secrets.TRIGGER_TARGETS_JSON }}
-      TRIGGER_LEAD_MINUTES: 80
-      TRIGGER_PAST_GRACE_MINUTES: 90
-      RECENT_LOOKBACK_MINUTES: 120
+      TRIGGER_LEAD_MINUTES: 360
+      DISPATCH_LEAD_MINUTES: 75
+      TRIGGER_PAST_GRACE_MINUTES: 720
+      RECENT_LOOKBACK_MINUTES: 900
 
     steps:
       - name: Check out repo

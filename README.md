@@ -6,13 +6,13 @@ This repository contains no account credentials, venue names, class names, or
 target schedule data. The target repository, event type, timezone, and schedule
 targets are stored as encrypted GitHub Actions secrets.
 
-The workflow runs short, staggered checkpoints around configured opening
-windows. A checkpoint dispatches the private target only from 80 minutes before
-through 90 minutes after an opening. It suppresses later retries for two hours
-after a successful target run, so the usual path is one private run per target
-window. If a target run fails, a later checkpoint can retry without depending
-on a long-lived public runner. The cron schedule is limited to the configured
-booking-open days instead of running every day.
+The workflow runs staggered checkpoints around configured opening windows. An
+early checkpoint waits until 75 minutes before opening, dispatches the private
+target, and exits immediately. Queued checkpoints provide failover if GitHub
+reclaims that runner. A checkpoint delivered late can recover for up to 12
+hours after opening. Successful target runs suppress duplicates for 15 hours;
+failed target runs remain eligible for retry. The cron schedule is limited to
+the configured booking-open days instead of running every day.
 
 GitHub automatically disables scheduled workflows in inactive public
 repositories. A separate keepalive checks twice monthly and creates a small
