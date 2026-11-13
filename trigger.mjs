@@ -122,6 +122,7 @@ async function dispatchTarget(window, offsetMinutes) {
       watch: true,
       source: 'generic-trigger',
       targetId: window.id,
+      opensAt: window.opensAt.toISOString(),
       offsetMinutes
     }
   };

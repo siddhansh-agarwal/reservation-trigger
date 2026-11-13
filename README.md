@@ -14,6 +14,9 @@ hours after opening. Successful target runs suppress duplicates for 15 hours;
 failed target runs remain eligible for retry. The cron schedule is limited to
 the configured booking-open days instead of running every day.
 
+Each dispatch includes the generic target's exact opening timestamp so the
+private automation can ignore unrelated classes that are also bookable.
+
 GitHub automatically disables scheduled workflows in inactive public
 repositories. A separate keepalive checks twice monthly and creates a small
 activity marker commit only when the latest repository commit is at least 30
